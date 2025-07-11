@@ -3,49 +3,60 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Management; // Required for WMI
-using System.Net.NetworkInformation; // For NetworkInterface
+using System.Management;
+using System.Net.NetworkInformation;
 using System.Windows;
 using System.Windows.Controls;
-// Add WPF UI namespace
-using Wpf.Ui.Controls; // For FluentWindow, CardExpander etc.
+using System.Windows.Media; // For SolidColorBrush
+using System.Windows.Threading; // For DispatcherTimer
+using Wpf.Ui.Controls;
+using TextBlock = Wpf.Ui.Controls.TextBlock; // For FluentWindow, ContentDialog etc.
 
 namespace NetChanger
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : FluentWindow // Change Window to FluentWindow
+    public partial class MainWindow : FluentWindow
     {
         private ObservableCollection<NetworkAdapterInfo> _networkAdapters = new ObservableCollection<NetworkAdapterInfo>();
         private Dictionary<string, string> _modemIps = new Dictionary<string, string>();
         private Dictionary<string, string[]> _dnsServers = new Dictionary<string, string[]>();
+        private DispatcherTimer _statusClearTimer;
 
         public MainWindow()
         {
             InitializeComponent();
-            // Assign ItemSource for cmbNetworkAdapters (it's an ObservableCollection and managed differently)
             cmbNetworkAdapters.ItemsSource = _networkAdapters;
-            // REMOVE ItemSource assignment for cmbModems and cmbDnsServers here.
-            // They will be populated directly via their .Items collection in PopulateDropdowns().
-            // cmbModems.ItemsSource = _modemIps; // REMOVE THIS LINE
-            // cmbDnsServers.ItemsSource = _dnsServers; // REMOVE THIS LINE
+
+            // Initialize DispatcherTimer for clearing action status message
+            _statusClearTimer = new DispatcherTimer();
+            _statusClearTimer.Interval = TimeSpan.FromSeconds(5); // Message disappears after 5 seconds
+            _statusClearTimer.Tick += StatusClearTimer_Tick;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            // Set window size to 40% of current screen resolution
+            double screenWidth = SystemParameters.PrimaryScreenWidth;
+            double screenHeight = SystemParameters.PrimaryScreenHeight;
+
+            this.Width = screenWidth * 0.40;
+            this.Height = screenHeight * 0.40;
+
             LoadConfiguration();
             PopulateNetworkAdapters();
             PopulateDropdowns();
 
-            // Automatically select the first adapter and load its current IP/Subnet
             if (cmbNetworkAdapters.Items.Count > 0)
             {
                 cmbNetworkAdapters.SelectedIndex = 0;
-                // Manually trigger the selection changed event to load current IP/Subnet
-                // Ensure the event handler is wired up (done in PopulateNetworkAdapters)
                 cmbNetworkAdapters_SelectionChanged(null, null);
             }
+        }
+
+        private void StatusClearTimer_Tick(object sender, EventArgs e)
+        {
+            _statusClearTimer.Stop();
+            txtActionButtonStatus.Text = string.Empty;
+            txtActionButtonStatus.Visibility = Visibility.Collapsed;
         }
 
         private void LoadConfiguration()
@@ -56,7 +67,8 @@ namespace NetChanger
 
             if (!File.Exists(configFilePath))
             {
-                ShowStatus("Error: config.txt not found. Please create it in the application directory.", true);
+                ShowContentDialog("Configuration Error", "Error: config.txt not found. Please create it in the application directory.", true);
+                ShowStatus("Failed to load configuration.", true); // General status
                 return;
             }
 
@@ -66,7 +78,7 @@ namespace NetChanger
             foreach (string line in lines)
             {
                 string trimmedLine = line.Trim();
-                if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("#")) // Ignore empty lines and comments
+                if (string.IsNullOrWhiteSpace(trimmedLine) || trimmedLine.StartsWith("#"))
                 {
                     continue;
                 }
@@ -109,7 +121,6 @@ namespace NetChanger
                     (ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet ||
                      ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211))
                 {
-                    // Check for IPv4 properties
                     IPInterfaceProperties ipProps = ni.GetIPProperties();
                     if (ipProps.UnicastAddresses.Any(x => x.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork))
                     {
@@ -120,37 +131,33 @@ namespace NetChanger
 
             if (_networkAdapters.Any())
             {
-                // Assign the SelectionChanged event handler
                 cmbNetworkAdapters.SelectionChanged += cmbNetworkAdapters_SelectionChanged;
                 ShowStatus($"Found {_networkAdapters.Count} active network adapters.", false);
             }
             else
             {
-                ShowStatus("No active Ethernet or Wi-Fi adapters found.", true);
+                ShowContentDialog("Network Adapter Error", "No active Ethernet or Wi-Fi adapters found. Please ensure your network adapter is connected and enabled.", true);
+                ShowStatus("No active network adapters found.", true); // General status
             }
         }
 
         private void PopulateDropdowns()
         {
-            // Populate Modem ComboBox
-            cmbModems.Items.Clear(); // This is now valid as ItemsSource is not set
+            cmbModems.Items.Clear();
             foreach (var modem in _modemIps)
             {
-                // The ComboBox will display the key (Modem1, Modem2) but the selected value will be the IP
                 ComboBoxItem item = new ComboBoxItem
                 {
-                    Content = modem.Key + " (" + modem.Value + ")", // Display both name and IP
-                    Tag = modem.Value // Store IP in Tag for easy retrieval
+                    Content = modem.Key + " (" + modem.Value + ")",
+                    Tag = modem.Value
                 };
                 cmbModems.Items.Add(item);
             }
             if (cmbModems.Items.Count > 0) cmbModems.SelectedIndex = 0;
 
-            // Populate DNS ComboBox
-            cmbDnsServers.Items.Clear(); // This is now valid as ItemsSource is not set
+            cmbDnsServers.Items.Clear();
             foreach (var dns in _dnsServers)
             {
-                // Display name and all IPs, store IPs array in Tag
                 ComboBoxItem item = new ComboBoxItem
                 {
                     Content = dns.Key + " (" + string.Join(", ", dns.Value) + ")",
@@ -161,13 +168,11 @@ namespace NetChanger
             if (cmbDnsServers.Items.Count > 0) cmbDnsServers.SelectedIndex = 0;
         }
 
-        // Event handler for when a network adapter is selected
         private void cmbNetworkAdapters_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (cmbNetworkAdapters.SelectedItem == null)
             {
                 txtStaticIp.Text = "";
-                txtSubnetMask.Text = "";
                 return;
             }
 
@@ -191,16 +196,14 @@ namespace NetChanger
 
                         if (ipAddresses != null && ipAddresses.Length > 0 && subnetMasks != null && subnetMasks.Length > 0)
                         {
-                            // Assuming the first IPv4 address and subnet for simplicity in this scenario
                             txtStaticIp.Text = ipAddresses[0];
-                            txtSubnetMask.Text = subnetMasks[0];
-                            ShowStatus($"Current IP/Subnet loaded for {((NetworkAdapterInfo)cmbNetworkAdapters.SelectedItem).Description}.", false);
+                            ShowStatus($"Current IP loaded for {((NetworkAdapterInfo)cmbNetworkAdapters.SelectedItem).Description}.", false);
                         }
                         else
                         {
                             txtStaticIp.Text = "";
-                            txtSubnetMask.Text = "";
-                            ShowStatus($"No IPv4 address found for selected adapter, assuming DHCP or unconfigured state. Please manually enter IP/Subnet.", true);
+                            ShowContentDialog("IP Configuration Warning", "No IPv4 address found for selected adapter. Please ensure it has a static IPv4 configuration.", true);
+                            ShowStatus("No IPv4 address found for adapter.", true); // General status
                         }
                         return;
                     }
@@ -208,67 +211,66 @@ namespace NetChanger
             }
             catch (Exception ex)
             {
-                ShowStatus($"Error retrieving current IP/Subnet: {ex.Message}", true);
+                ShowContentDialog("Retrieval Error", $"Error retrieving current IP: {ex.Message}", true);
+                ShowStatus($"Error retrieving current IP: {ex.Message}", true); // General status
                 txtStaticIp.Text = "";
-                txtSubnetMask.Text = "";
             }
         }
 
-
         private void ApplySettings_Click(object sender, RoutedEventArgs e)
         {
+            ShowActionButtonStatus(string.Empty, false, clearImmediate: true); // Clear previous status
+            ShowStatus("Validating inputs...", false); // General status
+
             if (cmbNetworkAdapters.SelectedItem == null)
             {
-                ShowStatus("Please select a network adapter.", true);
+                ShowActionButtonStatus("Please select a network adapter.", false);
                 return;
             }
 
             if (cmbModems.SelectedItem == null)
             {
-                ShowStatus("Please select a modem (gateway).", true);
+                ShowActionButtonStatus("Please select a modem (gateway).", false);
                 return;
             }
 
             if (cmbDnsServers.SelectedItem == null)
             {
-                ShowStatus("Please select DNS servers.", true);
+                ShowActionButtonStatus("Please select DNS servers.", false);
                 return;
             }
 
             string adapterId = ((NetworkAdapterInfo)cmbNetworkAdapters.SelectedItem).Id;
-            string selectedGateway = ((ComboBoxItem)cmbModems.SelectedItem).Tag.ToString(); // Access Tag from ComboBoxItem
-            string[] selectedDns = (string[])((ComboBoxItem)cmbDnsServers.SelectedItem).Tag; // Access Tag from ComboBoxItem
+            string selectedGateway = ((ComboBoxItem)cmbModems.SelectedItem).Tag.ToString();
+            string[] selectedDns = (string[])((ComboBoxItem)cmbDnsServers.SelectedItem).Tag;
 
-            // Use the IP and Subnet from the TextBoxes, which should already be populated or manually edited
             string currentIp = txtStaticIp.Text.Trim();
-            string currentSubnet = txtSubnetMask.Text.Trim();
 
-
-            // Basic validation
-            if (!System.Net.IPAddress.TryParse(currentIp, out _))
+            string currentSubnet = GetCurrentSubnetMask(adapterId);
+            if (string.IsNullOrEmpty(currentSubnet))
             {
-                ShowStatus("Invalid Static IP Address format. Please ensure it's correct.", true);
+                ShowActionButtonStatus("Could not retrieve current Subnet Mask. Cannot proceed.", false);
                 return;
             }
-            if (!System.Net.IPAddress.TryParse(currentSubnet, out _))
+
+            if (!System.Net.IPAddress.TryParse(currentIp, out _))
             {
-                ShowStatus("Invalid Subnet Mask format. Please ensure it's correct.", true);
+                ShowActionButtonStatus("Invalid Static IP Address format.", false);
                 return;
             }
             if (!System.Net.IPAddress.TryParse(selectedGateway, out _))
             {
-                ShowStatus("Invalid Gateway IP Address format.", true);
+                ShowActionButtonStatus("Invalid Gateway IP Address format.", false);
                 return;
             }
             foreach (string dns in selectedDns)
             {
                 if (!System.Net.IPAddress.TryParse(dns, out _))
                 {
-                    ShowStatus($"Invalid DNS IP Address format: {dns}", true);
+                    ShowActionButtonStatus($"Invalid DNS IP Address format: {dns}", false);
                     return;
                 }
             }
-
 
             SetNetworkConfiguration(adapterId, currentIp, currentSubnet, selectedGateway, selectedDns);
         }
@@ -286,9 +288,6 @@ namespace NetChanger
                 {
                     if (mo["SettingID"] != null && mo["SettingID"].ToString() == adapterId)
                     {
-                        // 1. Set Static IP and Subnet Mask (using current values from TextBoxes)
-                        // This step ensures the adapter is configured for static addressing,
-                        // which is a prerequisite for setting gateways and DNS.
                         ManagementBaseObject newIP = mo.GetMethodParameters("EnableStatic");
                         newIP["IPAddress"] = new string[] { ipAddress };
                         newIP["SubnetMask"] = new string[] { subnetMask };
@@ -296,69 +295,124 @@ namespace NetChanger
 
                         if (setIP["ReturnValue"].ToString() != "0")
                         {
-                            ShowStatus($"Failed to confirm/set IP Address and Subnet Mask: {GetWmiErrorDescription(setIP["ReturnValue"])}", true);
+                            string errorMessage = $"Failed to confirm/set IP Address and Subnet Mask: {GetWmiErrorDescription(setIP["ReturnValue"])}";
+                            ShowContentDialog("Network Configuration Error", errorMessage, true);
+                            ShowActionButtonStatus("Failed to apply settings!", false);
                             return;
                         }
 
-                        // 2. Set Gateway
                         ManagementBaseObject newGateway = mo.GetMethodParameters("SetGateways");
                         newGateway["DefaultIPGateway"] = new string[] { gateway };
-                        newGateway["GatewayCostMetric"] = new int[] { 1 }; // Metric 1 (lowest cost)
+                        newGateway["GatewayCostMetric"] = new int[] { 1 };
                         ManagementBaseObject setGateway = mo.InvokeMethod("SetGateways", newGateway, null);
 
                         if (setGateway["ReturnValue"].ToString() != "0")
                         {
-                            ShowStatus($"Failed to set Gateway: {GetWmiErrorDescription(setGateway["ReturnValue"])}", true);
+                            string errorMessage = $"Failed to set Gateway: {GetWmiErrorDescription(setGateway["ReturnValue"])}";
+                            ShowContentDialog("Network Configuration Error", errorMessage, true);
+                            ShowActionButtonStatus("Failed to apply settings!", false);
                             return;
                         }
 
-                        // 3. Set DNS Servers
                         ManagementBaseObject newDNS = mo.GetMethodParameters("SetDNSServerSearchOrder");
                         newDNS["DNSServerSearchOrder"] = dnsServers;
                         ManagementBaseObject setDNS = mo.InvokeMethod("SetDNSServerSearchOrder", newDNS, null);
 
                         if (setDNS["ReturnValue"].ToString() != "0")
                         {
-                            ShowStatus($"Failed to set DNS Servers: {GetWmiErrorDescription(setDNS["ReturnValue"])}", true);
+                            string errorMessage = $"Failed to set DNS Servers: {GetWmiErrorDescription(setDNS["ReturnValue"])}";
+                            ShowContentDialog("Network Configuration Error", errorMessage, true);
+                            ShowActionButtonStatus("Failed to apply settings!", false);
                             return;
                         }
 
                         ShowStatus($"Successfully applied settings for {((NetworkAdapterInfo)cmbNetworkAdapters.SelectedItem).Description}.", false);
-                        ShowStatus($"Current Config: IP: {ipAddress}, Subnet: {subnetMask}, Gateway: {gateway}, DNS: {string.Join(", ", dnsServers)}", false);
-                        return; // Found and configured the adapter
+                        ShowActionButtonStatus("Settings Saved!", true);
+                        return;
                     }
                 }
-                ShowStatus("Selected network adapter not found or not configured correctly.", true);
+                ShowActionButtonStatus("Selected network adapter not found or not configured.", false);
             }
             catch (UnauthorizedAccessException)
             {
-                ShowStatus("Error: Access Denied. Please run the application as Administrator.", true);
+                ShowContentDialog("Access Denied", "Please run the application as Administrator to change network settings.", true);
+                ShowActionButtonStatus("Access Denied!", false);
             }
             catch (Exception ex)
             {
-                ShowStatus($"An error occurred: {ex.Message}", true);
-                // For debugging, consider logging ex.ToString()
+                ShowContentDialog("Application Error", $"An unexpected error occurred: {ex.Message}", true);
+                ShowActionButtonStatus("An error occurred!", false);
             }
         }
 
+        private string GetCurrentSubnetMask(string adapterId)
+        {
+            try
+            {
+                ManagementClass mc = new ManagementClass("Win32_NetworkAdapterConfiguration");
+                ManagementObjectCollection moc = mc.GetInstances();
+
+                foreach (ManagementObject mo in moc)
+                {
+                    if (mo["SettingID"] != null && mo["SettingID"].ToString() == adapterId)
+                    {
+                        string[] subnetMasks = (string[])mo["IPSubnet"];
+                        if (subnetMasks != null && subnetMasks.Length > 0)
+                        {
+                            return subnetMasks[0];
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowStatus($"Error retrieving current Subnet Mask: {ex.Message}", true); // General status for retrieval error
+            }
+            return null;
+        }
+
+        // Updated ShowStatus for general messages (txtStatusMessage)
         private void ShowStatus(string message, bool isError)
         {
-            // Use Dispatcher.Invoke to ensure UI updates are on the main thread
-            txtStatus.Dispatcher.Invoke(() =>
+            txtStatusMessage.Dispatcher.Invoke(() =>
             {
-                // Prepend new messages to keep the latest at the top
-                txtStatus.Text = $"{DateTime.Now:HH:mm:ss} - {(isError ? "ERROR: " : "")}{message}\n" + txtStatus.Text;
-                // Set text color based on error status
-                if (isError)
+                txtStatusMessage.Text = message;
+                txtStatusMessage.Foreground = isError ? System.Windows.Media.Brushes.Red : (System.Windows.Media.Brush)Application.Current.FindResource("TextFillColorPrimaryBrush");
+            });
+        }
+
+        // New method to show temporary status messages near the button
+        private void ShowActionButtonStatus(string message, bool isSuccess, bool clearImmediate = false)
+        {
+            txtActionButtonStatus.Dispatcher.Invoke(() =>
+            {
+                _statusClearTimer.Stop(); // Stop any previous timer
+                txtActionButtonStatus.Text = message;
+                txtActionButtonStatus.Foreground = isSuccess ? System.Windows.Media.Brushes.Green : System.Windows.Media.Brushes.Red;
+                txtActionButtonStatus.Visibility = Visibility.Visible;
+
+                if (!clearImmediate)
                 {
-                    txtStatus.Foreground = System.Windows.Media.Brushes.Red;
+                    _statusClearTimer.Start(); // Start timer to clear message
                 }
                 else
                 {
-                    // Use a theme-aware brush for normal messages
-                    txtStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextFillColorPrimaryBrush");
+                    txtActionButtonStatus.Visibility = Visibility.Collapsed; // Clear immediately
                 }
             });
+        }
+
+        // New method to show ContentDialogs for critical errors
+        private async void ShowContentDialog(string title, string message, bool isError)
+        {
+            var contentDialog = new ContentDialog
+            {
+                Title = title,
+                Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, Foreground = isError ? Brushes.Red : Brushes.Black },
+                CloseButtonText = "Close"
+            };
+
+            await contentDialog.ShowAsync();
         }
 
         private string GetWmiErrorDescription(object returnValue)
@@ -373,7 +427,6 @@ namespace NetChanger
                 case "4": return "Invalid Gateway";
                 case "5": return "Invalid IP Address";
                 case "13": return "Invalid DNSServerSearchOrder";
-                // You can expand this based on WMI error codes
                 default: return $"WMI Return Code: {returnValue}";
             }
         }

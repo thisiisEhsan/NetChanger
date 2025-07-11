@@ -6,48 +6,54 @@
         xmlns:local="clr-namespace:NetChanger"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         mc:Ignorable="d"
-        Title="Modem &amp; DNS Switcher" Height="500" Width="550"
+        Title="Modem &amp; DNS Switcher"
         Loaded="Window_Loaded"
-        ExtendsContentIntoTitleBar="True">
-    <Grid Margin="10">
+        ExtendsContentIntoTitleBar="True"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Grid.ColumnSpan="2" Title="Modem &amp; DNS Switcher" />
+        <ui:TitleBar Grid.Row="0" Title="Modem &amp; DNS Switcher" />
 
-        <TextBlock Text="Select Network Adapter:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <ComboBox x:Name="cmbNetworkAdapters" Grid.Row="1" Grid.Column="1" Margin="5" DisplayMemberPath="Description" SelectedValuePath="Id"/>
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-        <TextBlock Text="Select Modem (Gateway):" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <ComboBox x:Name="cmbModems" Grid.Row="2" Grid.Column="1" Margin="5"/>
+            <TextBlock Text="Select Network Adapter:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <ComboBox x:Name="cmbNetworkAdapters" Grid.Row="0" Grid.Column="1" Margin="5" DisplayMemberPath="Description" SelectedValuePath="Id"/>
 
-        <TextBlock Text="Select DNS Servers:" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <ComboBox x:Name="cmbDnsServers" Grid.Row="3" Grid.Column="1" Margin="5"/>
+            <TextBlock Text="Select Modem (Gateway):" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <ComboBox x:Name="cmbModems" Grid.Row="1" Grid.Column="1" Margin="5"/>
 
-        <TextBlock Text="Static IP Address:" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <TextBox x:Name="txtStaticIp" Grid.Row="4" Grid.Column="1" Margin="5"/>
+            <TextBlock Text="Select DNS Servers:" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <ComboBox x:Name="cmbDnsServers" Grid.Row="2" Grid.Column="1" Margin="5"/>
 
-        <TextBlock Text="Subnet Mask:" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
-        <TextBox x:Name="txtSubnetMask" Grid.Row="5" Grid.Column="1" Margin="5"/>
+            <TextBlock Text="Static IP Address:" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold"/>
+            <TextBox x:Name="txtStaticIp" Grid.Row="3" Grid.Column="1" Margin="5" IsReadOnly="True"/>
 
-        <Button Content="Apply Network Settings" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" Margin="10" Padding="10" Click="ApplySettings_Click"/>
+            <Button Content="Apply Network Settings" Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="10,10,10,0" Padding="10" Click="ApplySettings_Click"/>
 
-        <ui:CardExpander Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" Header="Status Log" IsExpanded="True" Margin="5">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="80">
-                <TextBlock x:Name="txtStatus" TextWrapping="Wrap" Margin="5" Foreground="{DynamicResource TextFillColorPrimaryBrush}"/>
-            </ScrollViewer>
-        </ui:CardExpander>
+            <TextBlock x:Name="txtActionButtonStatus" Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" Margin="5,0,5,5" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" Visibility="Collapsed"/>
+
+            <TextBlock x:Name="txtStatusMessage" Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2" TextWrapping="Wrap" Margin="5" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+        </Grid>
     </Grid>
 </ui:FluentWindow>

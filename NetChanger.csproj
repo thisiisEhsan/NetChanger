@@ -14,10 +14,4 @@
     <PackageReference Include="WPF-UI" Version="4.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="config.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>
